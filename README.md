@@ -35,7 +35,7 @@ Documentation : Assistée par Claude Sonnet 5 - Effort medium (et pas gpt-4o-min
 
 - L'architecture du workflow repose sur des dépendances strictes : `frontend-build` dépend de `frontend-test` **et** `backend-test`. Le build et le push des images Docker (vers GitHub Container Registry `ghcr.io`) ne se déclenchent que si l'intégralité des tests est au vert.
 
-- Job `deploy` : s'authentifie en OIDC via une Managed Identity (cf. section 5.1) grâce aux secrets Azure du dépôt, récupère le contexte AKS, remplace dynamiquement le tag `latest` par le Git SHA dans les manifests Kubernetes (via `sed`), applique la configuration (`kubectl apply -f k8s/`) puis installe/met à jour la stack de monitoring (`helm upgrade --install`).
+- Job `deploy` : s'authentifie en OIDC via une Managed Identity (cf. section 5.1) grâce aux secrets Azure du dépôt, récupère le contexte AKS, installe/met à jour le contrôleur `ingress-nginx` (`helm upgrade --install`, brique d'infrastructure du cluster), remplace dynamiquement le tag `latest` par le Git SHA dans les manifests Kubernetes (via `sed`), applique la configuration (`kubectl apply -f k8s/`) puis installe/met à jour la stack de monitoring (`helm upgrade --install`).
 
 ## 4) Configuration AKS
 
@@ -45,10 +45,10 @@ Documentation : Assistée par Claude Sonnet 5 - Effort medium (et pas gpt-4o-min
   - `02-backend.yaml` / `03-frontend.yaml` : Déploiements utilisant les images poussées sur GHCR (`imagePullPolicy: IfNotPresent`) et Services (Node.js port 3000, Nginx port 80).
   - `04-ingress.yaml` : Ingress NGINX routant `/api` vers le backend et `/` vers le frontend.
   - `05-servicemonitor.yaml` : `ServiceMonitor` (CRD Prometheus Operator) pour que Prometheus scrape `/metrics` sur le backend (métriques custom via `prom-client`, cf. section 6).
-- `ingress-nginx` installé séparément via Helm (pas dans les manifests `kubectl apply`, car c'est une brique d'infrastructure du cluster, pas de l'application) :
+- `ingress-nginx` installé via Helm (pas dans les manifests `kubectl apply`, car c'est une brique d'infrastructure du cluster, pas de l'application). Automatisé dans le job `deploy` du pipeline CI/CD (`helm upgrade --install`, idempotent — un cluster déjà provisionné n'est pas réinstallé, un nouveau cluster le bootstrap automatiquement) :
   ```
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-  helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+  helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
   ```
 
 ## 5) Infrastructure Terraform
@@ -217,15 +217,16 @@ des étapes et des impasses, dans l'ordre :
 
 ## 8) Déploiement manuel (contournement)
 
-Comme expliqué en section 7.1, l'authentification OIDC entre GitHub Actions et Azure ne fonctionne
-pas de façon fiable pour tous les membres de l'équipe (cause probable : incohérence côté backend
-Azure AD, non reproductible à volonté, jamais résolue malgré une recréation complète des
-ressources concernées). Le pipeline CI/CD reste donc fonctionnel pour les tests, le build et le
-push des images (aucun de ces jobs ne dépend d'Azure), mais **le déploiement automatisé sur AKS
-n'est pas garanti à 100 % selon le compte**. Pour ne pas dépendre de ce point de friction externe
-au projet, voici la procédure de déploiement manuel complète — strictement équivalente à ce que
-fait le job `deploy` du workflow, exécutée à la main depuis un poste déjà authentifié
-(`az login`) :
+Comme expliqué en section 7.1, l'authentification OIDC entre GitHub Actions et Azure a été une
+source de blocage majeure pendant une bonne partie du projet (cause finalement identifiée : un
+slash final en trop dans l'issuer du federated credential, corrigé — voir le encart « SOLUTION
+TROUVÉE » en fin de section 7.1). Le job `deploy` du pipeline CI/CD fonctionne donc désormais de
+bout en bout. Cette procédure manuelle reste néanmoins documentée ici, pour deux raisons : elle a
+servi de solution de secours pendant toute la période où l'authentification échouait encore (et
+peut resservir en cas de régression), et elle répond explicitement au critère de notation
+« procédure d'installation et déploiement claire », indépendamment de l'état du pipeline CI/CD.
+Elle est strictement équivalente à ce que fait le job `deploy` du workflow, exécutée à la main
+depuis un poste déjà authentifié (`az login`) :
 
 **1. Infrastructure (une seule fois, ou après un `terraform destroy`)**
 ```
@@ -241,11 +242,11 @@ az aks get-credentials --resource-group <resource_group_name> --name <cluster_na
 kubectl get nodes   # vérifie que le cluster répond
 ```
 
-**3. Ingress controller (une seule fois par cluster — brique d'infrastructure, pas applicative)**
+**3. Ingress controller (brique d'infrastructure, pas applicative — aussi automatisé dans le job `deploy` désormais)**
 ```
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
 kubectl get svc -n ingress-nginx ingress-nginx-controller   # récupère l'IP publique (EXTERNAL-IP)
 ```
 

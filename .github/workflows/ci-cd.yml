@@ -213,6 +213,16 @@ jobs:
       - name: Get AKS Credentials
         run: az aks get-credentials --resource-group ${{ secrets.AKS_RG }} --name ${{ secrets.AKS_CLUSTER }}
 
+        # Added the ingress too, because i deployed it manually
+      - name: Deploy Ingress Controller
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --wait
+
       - name: Inject Commit SHA into Manifests
         run: |
           sed -i "s|ghcr.io/revanito/project-devops-backend:latest|ghcr.io/revanito/project-devops-backend:${{ github.sha }}|g" k8s/02-backend.yaml
