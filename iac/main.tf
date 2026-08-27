@@ -76,7 +76,7 @@ resource "azurerm_federated_identity_credential" "ci_github" {
   name                       = "github-actions-main-branch"
   user_assigned_identity_id  = azurerm_user_assigned_identity.ci.id
   audience                   = ["api://AzureADTokenExchange"]
-  issuer                     = "https://token.actions.githubusercontent.com/"
+  issuer                     = "https://token.actions.githubusercontent.com"
   subject                    = "repo:Revanito@100203166/project-devops@1344687975:ref:refs/heads/main"
 }
 # Source https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/managed_service_identity

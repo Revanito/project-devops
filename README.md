@@ -180,6 +180,22 @@ des étapes et des impasses, dans l'ordre :
    Terraform, et renforce l'hypothèse d'un état incohérent propre au compte/tenant Azure AD de
    l'école plutôt qu'à la configuration du projet.
 
+> **✅ SOLUTION TROUVÉE** : au lieu de continuer à deviner, on a ajouté deux étapes de diagnostic
+> dans le job `deploy` (avant `azure/login@v2`) : récupération du jeton OIDC brut de GitHub via
+> `curl` sur `$ACTIONS_ID_TOKEN_REQUEST_URL`, puis décodage manuel du payload JWT (`base64 -d` sur
+> la partie centrale du token) pour lire directement les claims `iss`/`sub`/`aud` réellement
+> envoyés par GitHub — sans passer par le résumé (parfois trompeur) de l'action `azure/login`.
+> Résultat : `"iss": "https://token.actions.githubusercontent.com"`, **sans slash final**. Or le
+> federated credential Terraform avait justement `https://token.actions.githubusercontent.com/`
+> (**avec** un slash, cf. point 4) — un mismatch de string exact, qui est très précisément ce que
+> `AADSTS700211` reproche. Le point 4 (« l'issuer doit avoir un slash ») était donc une fausse piste
+> depuis le début : l'inverse est vrai, l'issuer ne doit **pas** avoir de slash final, il doit
+> matcher caractère pour caractère le claim `iss` du jeton. Correction dans `iac/main.tf` (retrait du
+> slash) + `terraform apply` (mise à jour en place, sans même besoin d'un delete+create cette
+> fois) → le job `deploy` passe l'étape `azure/login@v2` avec succès immédiatement. Après plusieurs
+> heures de débogage étalées sur plusieurs jours, la cause réelle était donc une simple erreur de
+> caractère dans une valeur codée en dur, jamais vérifiée contre le jeton brut réel avant ce point.
+
 ### 7.2) Autres difficultés notables
 
 - **GitHub Actions cesse silencieusement de se déclencher sur `push`** après une série d'échecs et
