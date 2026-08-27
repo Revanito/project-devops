@@ -245,7 +245,20 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
 ```
 
 **6. Vérification de bout en bout**
+
+Get the ip's to check if they answer (and the IP to access them)
+```
+kubectl get svc -n ingress-nginx ingress-nginx-controller -o wide && echo "---" && kubectl get svc -n monitoring -o wide
+```
+
+
 ```
 curl http://<EXTERNAL-IP>/           # doit répondre 200 (frontend)
 curl http://<EXTERNAL-IP>/api/tasks  # doit répondre [] ou la liste des tâches (backend + DB)
+```
+
+Grafana access : 
+```
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+http://localhost:3000
 ```
