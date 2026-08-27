@@ -35,7 +35,7 @@ Documentation : Assistée par Claude Sonnet 5 - Effort medium (et pas gpt-4o-min
 
 - L'architecture du workflow repose sur des dépendances strictes : `frontend-build` dépend de `frontend-test` **et** `backend-test`. Le build et le push des images Docker (vers GitHub Container Registry `ghcr.io`) ne se déclenchent que si l'intégralité des tests est au vert.
 
-- Job `deploy` : matrice `[Corentin, Nicolas, Mael]`, chaque exécution liée à son propre GitHub Environment (`environment: ${{ matrix.member }}`) contenant les secrets Azure de ce membre. Le job s'authentifie en OIDC via une Managed Identity (cf. section 5.1), récupère le contexte AKS, remplace dynamiquement le tag `latest` par le Git SHA dans les manifests Kubernetes (via `sed`), applique la configuration (`kubectl apply -f k8s/`) puis installe/met à jour la stack de monitoring (`helm upgrade --install`). `fail-fast: false` pour qu'un cluster pas encore prêt ne bloque pas le déploiement des deux autres.
+- Job `deploy` : s'authentifie en OIDC via une Managed Identity (cf. section 5.1) grâce aux secrets Azure du dépôt, récupère le contexte AKS, remplace dynamiquement le tag `latest` par le Git SHA dans les manifests Kubernetes (via `sed`), applique la configuration (`kubectl apply -f k8s/`) puis installe/met à jour la stack de monitoring (`helm upgrade --install`).
 
 ## 4) Configuration AKS
 
@@ -168,6 +168,17 @@ des étapes et des impasses, dans l'ordre :
    Contournement retenu : déploiement manuel (`az aks get-credentials` + `kubectl apply -f k8s/`
    depuis un terminal déjà authentifié), qui fonctionne parfaitement et ne dépend pas de cette
    authentification OIDC.
+8. **Confirmation ultérieure de l'hypothèse « backend Azure AD »** : une fois le dépôt repassé en
+   usage individuel (suppression de la matrice `[Corentin, Nicolas, Mael]` et de la notion
+   d'`environment:` dans le job `deploy`, cf. section 5.1), le subject OIDC change complètement de
+   format — `repo:{owner}@{ownerId}/{repo}@{repoId}:ref:refs/heads/main` au lieu de
+   `...:environment:Corentin`. Le federated credential a été recréé avec ce nouveau subject (vérifié
+   via `az identity federated-credential list`, issuer et subject strictement conformes), et
+   pourtant l'exécution du workflow échoue avec exactement la même erreur `AADSTS700211 : No
+   matching federated identity record found`. Le fait qu'un changement total de format de subject
+   ne change rien à l'erreur exclut définitivement une mauvaise configuration du subject/issuer côté
+   Terraform, et renforce l'hypothèse d'un état incohérent propre au compte/tenant Azure AD de
+   l'école plutôt qu'à la configuration du projet.
 
 ### 7.2) Autres difficultés notables
 
