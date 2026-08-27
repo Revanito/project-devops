@@ -22,8 +22,3 @@ variable "vm_size" {
   type    = string
   default = "Standard_B2ms" # 2 vCPU / 8 Go RAM — B2s (4 Go) jugé trop juste par le formateur
 }
-
-variable "github_environment_name" {
-  type        = string
-  description = "Nom EXACT (sensible à la casse) de l'environnement GitHub (Settings > Environments) qui contient les secrets Azure (renseigné dans terraform.tfvars)."
-}

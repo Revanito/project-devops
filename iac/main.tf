@@ -73,11 +73,11 @@ resource "azurerm_role_assignment" "ci_contributor" {
 # Lien de confiance OIDC entre GitHub Actions et cette identité.
 # resource_group_name > deprecated dans terraform avec l'assigned identity, changement // aussi "parent_id" deprecated, putain
 resource "azurerm_federated_identity_credential" "ci_github" {
-  name                       = "github-actions-${lower(var.github_environment_name)}-env"
+  name                       = "github-actions-main-branch"
   user_assigned_identity_id  = azurerm_user_assigned_identity.ci.id
   audience                   = ["api://AzureADTokenExchange"]
   issuer                     = "https://token.actions.githubusercontent.com/"
-  subject   = "repo:Revanito@100203166/project-devops@1344687975:environment:${var.github_environment_name}"
+  subject                    = "repo:Revanito@100203166/project-devops@1344687975:ref:refs/heads/main"
 }
 # Source https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/managed_service_identity
 # Source https://learn.microsoft.com/en-us/azure/developer/terraform/authenticate-to-azure-with-managed-identity-for-azure-services

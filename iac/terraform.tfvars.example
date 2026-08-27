@@ -1,6 +1,5 @@
 # Modèle — copiez ce fichier en terraform.tfvars, puis renseignez VOS valeurs.
-# terraform.tfvars est ignoré par git (personnel à chaque membre de l'équipe).
+# terraform.tfvars est ignoré par git.
 
 resource_group_name = "rg-xxx_cours-projet" # le nom EXACT de votre resource group
 myuid                = "xxx" # votre login école, ex: CBedel2025 (tag "user" obligatoire)
-github_environment_name = "xxx" # nom EXACT de l'environnement GitHub, exemple : Corentin (ou Mael ou Nicolas)

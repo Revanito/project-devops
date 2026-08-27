@@ -172,11 +172,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    strategy:
-      fail-fast: false
-      matrix: 
-        member: [Corentin, Nicolas, Mael]
-    environment: ${{ matrix.member }}
     defaults:
       run:
         working-directory: .
