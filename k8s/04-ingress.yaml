@@ -3,10 +3,33 @@ kind: Ingress
 metadata:
   name: todolist-ingress
   namespace: todolist
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - todolist.4-251-132-234.nip.io
+      secretName: todolist-tls
   rules:
     - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: todolist.4-251-132-234.nip.io
+      http:
         paths:
           - path: /api
             pathType: Prefix
