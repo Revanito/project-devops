@@ -223,14 +223,12 @@ jobs:
             --create-namespace \
             --wait
 
-      - name: Inject Commit SHA into Manifests
-        run: |
-          sed -i "s|ghcr.io/revanito/project-devops-backend:latest|ghcr.io/revanito/project-devops-backend:${{ github.sha }}|g" k8s/02-backend.yaml
-          sed -i "s|ghcr.io/revanito/project-devops-frontend:latest|ghcr.io/revanito/project-devops-frontend:${{ github.sha }}|g" k8s/03-frontend.yaml
-
-      - name: Deploy to AKS
-        run: kubectl apply -f k8s/
-
+      # Doit tourner AVANT "kubectl apply -f k8s/" : installe le Prometheus
+      # Operator et donc la CRD ServiceMonitor utilisée par
+      # k8s/05-servicemonitor.yaml. Sur un cluster déjà provisionné la CRD
+      # existe déjà (no-op), mais sur un cluster tout neuf "kubectl apply"
+      # échouerait avec "no matches for kind ServiceMonitor" si cette étape
+      # passait après.
       - name: Deploy Monitoring Stack
         run: |
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -244,3 +242,11 @@ jobs:
             --set-json prometheus.prometheusSpec.podMonitorNamespaceSelector='{}' \
             --set-json prometheus.prometheusSpec.serviceMonitorNamespaceSelector='{}' \
             --wait
+
+      - name: Inject Commit SHA into Manifests
+        run: |
+          sed -i "s|ghcr.io/revanito/project-devops-backend:latest|ghcr.io/revanito/project-devops-backend:${{ github.sha }}|g" k8s/02-backend.yaml
+          sed -i "s|ghcr.io/revanito/project-devops-frontend:latest|ghcr.io/revanito/project-devops-frontend:${{ github.sha }}|g" k8s/03-frontend.yaml
+
+      - name: Deploy to AKS
+        run: kubectl apply -f k8s/
