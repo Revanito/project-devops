@@ -1,6 +1,8 @@
 # Project-DevOps
 Groupe Maël NOUVEL, Corentin Bédel et Nicolas Bonnifet
 
+@author Corentin Bédel
+
 Documentation : Assistée par Claude Sonnet 5 - Effort medium (et pas gpt-4o-mini, on a les moyens ici!)
 
 ## 1) Architecture de l'application
@@ -58,6 +60,38 @@ Documentation : Assistée par Claude Sonnet 5 - Effort medium (et pas gpt-4o-min
 - Chaque ressource créée porte le tag `user = <myuid>` obligatoire, hérité automatiquement des tags du resource group (déjà conforme à la policy de l'école) via un `merge()`.
 - `iac/terraform.tfvars` (non versionné, personnel à chaque membre) : copier `terraform.tfvars.example`, renseigner `resource_group_name`, `myuid` et `github_environment_name`.
 - Utilisation : `terraform init`, `terraform plan`, `terraform apply` depuis `iac/`. `terraform output` donne ensuite la commande `az aks get-credentials` prête à l'emploi ainsi que les secrets nécessaires côté GitHub Actions (cf. 5.1).
+- Extrait de `iac/main.tf` (cluster AKS + tag obligatoire) :
+  ```hcl
+  data "azurerm_resource_group" "this" {
+    name = var.resource_group_name # resource group EXISTANT, jamais créé par Terraform
+  }
+
+  resource "azurerm_kubernetes_cluster" "this" {
+    name                = var.cluster_name
+    location            = data.azurerm_resource_group.this.location
+    resource_group_name = data.azurerm_resource_group.this.name
+    dns_prefix          = var.cluster_name
+    sku_tier            = "Free" # control plane managé, sans SLA, non facturé
+
+    default_node_pool {
+      name       = "default"
+      node_count = var.node_count
+      vm_size    = var.vm_size
+    }
+
+    identity {
+      type = "SystemAssigned" # identité managée pour le cluster lui-même : aucun secret à gérer
+    }
+
+    network_profile {
+      network_plugin = "azure"
+      network_policy = "azure" # sinon les NetworkPolicy sont acceptées mais SANS EFFET
+    }
+
+    # Hérite des tags du resource group (conformité policy école) + ajoute le tag "user" obligatoire
+    tags = merge(data.azurerm_resource_group.this.tags, { user = var.myuid })
+  }
+  ```
 
 ### 5.1) Identité CI/CD gérée par Terraform
 
